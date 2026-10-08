@@ -1,0 +1,12 @@
+.DS_Store
+.env
+node_modules/
+frontend/dist/
+backend/.venv/
+backend/db.sqlite3
+backend/.cache/
+backend/staticfiles/
+__pycache__/
+*.pyc
+.playwright-mcp/
+.token-optimizer/

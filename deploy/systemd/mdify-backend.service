@@ -1,0 +1,20 @@
+[Unit]
+Description=mdify Django backend
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/mdify/app/backend
+EnvironmentFile=/etc/mdify/backend.env
+ExecStart=/opt/mdify/app/backend/.venv/bin/gunicorn mdify.wsgi:application --bind 127.0.0.1:8017 --workers 3 --timeout 30 --max-requests 1000 --max-requests-jitter 100 --access-logfile -
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/mdify
+
+[Install]
+WantedBy=multi-user.target

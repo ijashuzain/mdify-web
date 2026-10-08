@@ -1,0 +1,64 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: mdify-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check backend
+        working-directory: backend
+        env:
+          DEBUG: "True"
+        run: |
+          pip install --quiet -r requirements.txt
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+
+      - name: Sync and deploy to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          APP_DIR: /opt/mdify/app
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          SSH="ssh -i $HOME/.ssh/vps_key -o IdentitiesOnly=yes"
+
+          $SSH "$VPS_USER@$VPS_HOST" "install -d -m 755 $APP_DIR"
+          rsync -az --delete \
+            --include 'frontend/' --include 'frontend/dist/***' --exclude 'frontend/*' \
+            --exclude '.git' --exclude '.github' --exclude 'docs' \
+            --exclude 'backend/.venv' --exclude '__pycache__' --exclude '*.pyc' \
+            --exclude 'backend/db.sqlite3' --exclude 'backend/.cache' --exclude 'backend/staticfiles' \
+            -e "$SSH" ./ "$VPS_USER@$VPS_HOST:$APP_DIR/"
+          $SSH "$VPS_USER@$VPS_HOST" "bash $APP_DIR/deploy/deploy_mdify.sh"
