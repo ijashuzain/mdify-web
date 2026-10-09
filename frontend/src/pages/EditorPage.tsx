@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { UploadIcon } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import MarkdownEditor from '../components/MarkdownEditor'
 import SharePanel from '../components/SharePanel'
@@ -8,11 +9,13 @@ import TopBar from '../components/TopBar'
 import { api, ApiError, rememberOwned, storageGet, storageSet, type Doc, type Expiry } from '../lib/api'
 
 type Mode = 'write' | 'split' | 'preview'
+const MAX_FILE_BYTES = 512 * 1024
+const MD_FILE = /\.(md|markdown|mdown|mkd|txt)$/i
 const MODE_KEY = 'mdify:mode'
 
 const WELCOME = `# Untitled
 
-Write **Markdown** here. Hit *Share* to publish it as a link.
+Write **Markdown** here, or drop a \`.md\` file anywhere to open it. Hit *Share* to publish it as a link.
 
 - Lists, tables, code blocks and quotes are supported
 - Drafts save automatically in this browser
@@ -136,6 +139,77 @@ export default function EditorPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [doc, save])
 
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
+
+  const openFile = useCallback(
+    async (file: File) => {
+      if (!MD_FILE.test(file.name) && !file.type.startsWith('text/')) {
+        toast('Only Markdown (.md) or text files can be opened')
+        return
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        toast('File is too large (max 512 KB)')
+        return
+      }
+      const text = await file.text()
+      const current = contentRef.current.trim()
+      if (current && current !== WELCOME.trim() && current !== text.trim() && !confirm(`Replace the current text with “${file.name}”?`)) return
+      onChange(text)
+      toast(`Opened ${file.name}`)
+    },
+    [onChange, toast],
+  )
+
+  const onPick = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) openFile(file)
+    e.target.value = ''
+  }
+
+  // Capture-phase listeners so dropped files replace the document instead of
+  // being inserted at the cursor by CodeMirror.
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')
+    let depth = 0
+    const onEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      depth++
+      setDragging(true)
+    }
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    }
+    const onLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      depth = Math.max(0, depth - 1)
+      if (depth === 0) setDragging(false)
+    }
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      depth = 0
+      setDragging(false)
+      const file = e.dataTransfer?.files[0]
+      if (file) openFile(file)
+    }
+    window.addEventListener('dragenter', onEnter, true)
+    window.addEventListener('dragover', onOver, true)
+    window.addEventListener('dragleave', onLeave, true)
+    window.addEventListener('drop', onDrop, true)
+    return () => {
+      window.removeEventListener('dragenter', onEnter, true)
+      window.removeEventListener('dragover', onOver, true)
+      window.removeEventListener('dragleave', onLeave, true)
+      window.removeEventListener('drop', onDrop, true)
+    }
+  }, [openFile])
+
   const words = content.trim() ? content.trim().split(/\s+/).length : 0
 
   const modeSwitch = (
@@ -163,6 +237,10 @@ export default function EditorPage() {
   return (
     <>
       <TopBar center={modeSwitch}>
+        <button className="icon-btn" onClick={() => fileInput.current?.click()} title="Open .md file" aria-label="Open Markdown file">
+          <UploadIcon />
+        </button>
+        <input ref={fileInput} type="file" accept=".md,.markdown,.mdown,.mkd,.txt,text/markdown,text/plain" hidden onChange={onPick} />
         {doc && (
           <Link to={`/doc/${doc.id}`} className="btn btn-ghost">
             View
@@ -202,6 +280,14 @@ export default function EditorPage() {
           </>
         )}
       </main>
+      {dragging && (
+        <div className="drop-overlay" aria-hidden>
+          <div className="drop-card">
+            <UploadIcon size={22} />
+            <span>Drop a Markdown file to open it</span>
+          </div>
+        </div>
+      )}
       <footer className="statusbar">
         {words} words{doc ? '' : ' · Draft saved in this browser'}
       </footer>

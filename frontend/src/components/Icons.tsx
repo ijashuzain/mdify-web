@@ -38,3 +38,6 @@ export const DocIcon = ({ size }: P) => (
 export const CheckIcon = ({ size }: P) => (
   <svg {...base(size)}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 )
+export const UploadIcon = ({ size }: P) => (
+  <svg {...base(size)}><path d="M12 15V4M7 9l5-5 5 5M5 20h14" /></svg>
+)
