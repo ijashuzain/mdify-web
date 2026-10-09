@@ -41,3 +41,6 @@ export const CheckIcon = ({ size }: P) => (
 export const UploadIcon = ({ size }: P) => (
   <svg {...base(size)}><path d="M12 15V4M7 9l5-5 5 5M5 20h14" /></svg>
 )
+export const BookmarkIcon = ({ size }: P) => (
+  <svg {...base(size)}><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z" /></svg>
+)

@@ -702,6 +702,13 @@ h1 {
   .topbar-right .btn-ghost {
     display: none;
   }
+  .topbar-right .btn-save {
+    display: inline-flex;
+    padding: 0 8px;
+  }
+  .btn-save .btn-label {
+    display: none;
+  }
   .segmented button {
     padding: 0 7px;
   }

@@ -1,10 +1,22 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { CheckIcon, CopyIcon, DownloadIcon, EditIcon, LockIcon, PlusIcon } from '../components/Icons'
+import { BookmarkIcon, CheckIcon, CopyIcon, DownloadIcon, EditIcon, LockIcon, PlusIcon } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import { useToast } from '../components/Toast'
 import TopBar from '../components/TopBar'
-import { api, ApiError, relativeExpiry, shortDate, type Doc } from '../lib/api'
+import { api, ApiError, rememberOwned, relativeExpiry, shortDate, storageGet, storageSet, type Doc } from '../lib/api'
+import { useAuth } from '../lib/auth'
+
+// Original doc id -> id of the copy saved from it in this browser.
+const SAVED_KEY = 'mdify:saved'
+
+function savedCopies(): Record<string, string> {
+  try {
+    return JSON.parse(storageGet(SAVED_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
 
 export default function ViewerPage() {
   const { id = '' } = useParams()
@@ -14,6 +26,25 @@ export default function ViewerPage() {
   const [passcode, setPasscode] = useState('')
   const [passError, setPassError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { user } = useAuth()
+  const [savedId, setSavedId] = useState<string | null>(() => savedCopies()[id] ?? null)
+  const [saving, setSaving] = useState(false)
+
+  const saveCopy = async () => {
+    if (!doc?.content) return
+    setSaving(true)
+    try {
+      const copy = await api.createDoc({ content: doc.content, expiry: user ? '90d' : '7d' })
+      rememberOwned(copy, copy.edit_token)
+      storageSet(SAVED_KEY, JSON.stringify({ ...savedCopies(), [doc.id]: copy.id }))
+      setSavedId(copy.id)
+      toast(user ? 'Saved to your docs' : 'Saved for 7 days. Sign in to keep it for 90 days')
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const load = async (code?: string) => {
     try {
@@ -87,6 +118,16 @@ export default function ViewerPage() {
                 <EditIcon />
               </Link>
             )}
+            {!doc.can_edit &&
+              (savedId ? (
+                <Link className="btn btn-ghost btn-save" to={`/doc/${savedId}/edit`} title="Open your saved copy" aria-label="Saved. Open your copy">
+                  <CheckIcon size={14} /> <span className="btn-label">Saved</span>
+                </Link>
+              ) : (
+                <button className="btn btn-ghost btn-save" onClick={saveCopy} disabled={saving} title="Save a copy to your docs" aria-label="Save to my docs">
+                  <BookmarkIcon size={14} /> <span className="btn-label">{saving ? 'Saving…' : 'Save to my docs'}</span>
+                </button>
+              ))}
             <button className="btn btn-secondary" onClick={copyLink}>
               Copy link
             </button>
