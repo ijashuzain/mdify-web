@@ -57,7 +57,7 @@ jobs:
 
           $SSH "$VPS_USER@$VPS_HOST" "install -d -m 755 $APP_DIR"
           rsync -az --delete \
-            --include 'frontend/' --include 'frontend/dist/***' --exclude 'frontend/*' \
+            --include 'frontend/' --include 'frontend/dist/***' --include 'frontend/handoff/***' --exclude 'frontend/*' \
             --exclude '.git' --exclude '.github' --exclude 'docs' \
             --exclude 'backend/.venv' --exclude '__pycache__' --exclude '*.pyc' \
             --exclude 'backend/db.sqlite3' --exclude 'backend/.cache' --exclude 'backend/staticfiles' \
@@ -66,23 +66,22 @@ jobs:
           printf '%s\n' "$PROXY_SECRET" | $SSH "$VPS_USER@$VPS_HOST" \
             "IFS= read -r PROXY_SECRET_IN; export PROXY_SECRET_IN; bash $APP_DIR/deploy/deploy_mdify.sh"
 
-      - name: Deploy frontend to Cloudflare Pages
+      - name: Deploy redirect page to Cloudflare Pages
+        # mdifyapp.pages.dev now only forwards visitors to the primary domain.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PROXY_SECRET: ${{ secrets.MDIFY_PROXY_SECRET }}
-          PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mdify-app' }}
-        working-directory: frontend
+          PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mdifyapp' }}
+        working-directory: frontend/handoff
         run: |
           set -euo pipefail
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "Cloudflare secrets not set; skipping Pages deploy."
             exit 0
           fi
-          WRANGLER="npx --yes wrangler@4"
-          $WRANGLER pages project list | grep -qw "$PROJECT" || \
-            $WRANGLER pages project create "$PROJECT" --production-branch main
-          if [ -n "$PROXY_SECRET" ]; then
-            printf '%s' "$PROXY_SECRET" | $WRANGLER pages secret put PROXY_SECRET --project-name "$PROJECT"
-          fi
-          $WRANGLER pages deploy dist --project-name "$PROJECT" --branch main --commit-dirty=true
+          # Only redirect once the new domain answers over HTTPS.
+          curl -fsS --max-time 15 https://mdify.is-live.dev/api/health/ >/dev/null || {
+            echo "mdify.is-live.dev is not serving HTTPS yet; leaving Pages unchanged." >&2
+            exit 1
+          }
+          npx --yes wrangler@4 pages deploy . --project-name "$PROJECT" --branch main --commit-dirty=true
