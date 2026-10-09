@@ -45,6 +45,7 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          PROXY_SECRET: ${{ secrets.MDIFY_PROXY_SECRET }}
           APP_DIR: /opt/mdify/app
         run: |
           set -euo pipefail
@@ -61,4 +62,27 @@ jobs:
             --exclude 'backend/.venv' --exclude '__pycache__' --exclude '*.pyc' \
             --exclude 'backend/db.sqlite3' --exclude 'backend/.cache' --exclude 'backend/staticfiles' \
             -e "$SSH" ./ "$VPS_USER@$VPS_HOST:$APP_DIR/"
-          $SSH "$VPS_USER@$VPS_HOST" "bash $APP_DIR/deploy/deploy_mdify.sh"
+          # The proxy secret travels over SSH stdin so it never appears in logs or argv.
+          printf '%s\n' "$PROXY_SECRET" | $SSH "$VPS_USER@$VPS_HOST" \
+            "IFS= read -r PROXY_SECRET_IN; export PROXY_SECRET_IN; bash $APP_DIR/deploy/deploy_mdify.sh"
+
+      - name: Deploy frontend to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROXY_SECRET: ${{ secrets.MDIFY_PROXY_SECRET }}
+          PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mdify-app' }}
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Cloudflare secrets not set; skipping Pages deploy."
+            exit 0
+          fi
+          WRANGLER="npx --yes wrangler@4"
+          $WRANGLER pages project list | grep -qw "$PROJECT" || \
+            $WRANGLER pages project create "$PROJECT" --production-branch main
+          if [ -n "$PROXY_SECRET" ]; then
+            printf '%s' "$PROXY_SECRET" | $WRANGLER pages secret put PROXY_SECRET --project-name "$PROJECT"
+          fi
+          $WRANGLER pages deploy dist --project-name "$PROJECT" --branch main --commit-dirty=true

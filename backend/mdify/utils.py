@@ -1,8 +1,18 @@
+import os
+
 from django.core.cache import cache
+from django.utils.crypto import constant_time_compare
 from rest_framework.exceptions import Throttled
 
 
 def client_ip(request):
+    # Requests relayed by the Cloudflare Pages function carry the visitor's IP,
+    # trusted only when they also carry the shared proxy secret.
+    secret = os.environ.get("PROXY_SECRET")
+    if secret and constant_time_compare(request.META.get("HTTP_X_MDIFY_PROXY", ""), secret):
+        forwarded = request.META.get("HTTP_X_CLIENT_IP", "")
+        if forwarded:
+            return forwarded
     return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR", "")
 
 

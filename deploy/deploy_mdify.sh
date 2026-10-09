@@ -59,6 +59,11 @@ fi
 
 ALLOWED="$(echo $HOSTS | tr ' ' ','),127.0.0.1,localhost"
 ORIGINS="$(for h in $HOSTS; do printf 'https://%s,' "$h"; done | sed 's/,$//')"
+# Secret shared with the Cloudflare Pages function (passed in by the workflow).
+if [ -n "${PROXY_SECRET_IN:-}" ]; then
+  sed -i '/^PROXY_SECRET=/d' "$ENV_FILE"
+  printf 'PROXY_SECRET=%s\n' "$PROXY_SECRET_IN" >> "$ENV_FILE"
+fi
 sed -i -e "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=$ALLOWED|" -e "s|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=$ORIGINS|" "$ENV_FILE"
 
 # --- Backend --------------------------------------------------------------------
