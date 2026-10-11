@@ -12,6 +12,8 @@ type Mode = 'write' | 'split' | 'preview'
 const MAX_FILE_BYTES = 512 * 1024
 const MD_FILE = /\.(md|markdown|mdown|mkd|txt)$/i
 const MODE_KEY = 'mdify:mode'
+// Below this width the panes stack, so Split is hidden and falls back to Write.
+const NARROW = '(max-width: 760px)'
 
 const WELCOME = `# Untitled
 
@@ -23,6 +25,7 @@ Write **Markdown** here, or drop a \`.md\` file anywhere to open it. Hit *Share*
 
 function initialMode(): Mode {
   const saved = storageGet(MODE_KEY) as Mode | null
+  if (saved === 'split' && window.matchMedia(NARROW).matches) return 'write'
   if (saved === 'write' || saved === 'split' || saved === 'preview') return saved
   return window.innerWidth >= 1000 ? 'split' : 'write'
 }
@@ -82,6 +85,14 @@ export default function EditorPage() {
     setMode(m)
     storageSet(MODE_KEY, m)
   }
+
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW)
+    const onNarrow = () => mq.matches && setMode((m) => (m === 'split' ? 'write' : m))
+    onNarrow()
+    mq.addEventListener('change', onNarrow)
+    return () => mq.removeEventListener('change', onNarrow)
+  }, [])
 
   const save = useCallback(async () => {
     if (!doc) return
@@ -215,7 +226,13 @@ export default function EditorPage() {
   const modeSwitch = (
     <div className="segmented" role="tablist" aria-label="View mode">
       {(['write', 'split', 'preview'] as Mode[]).map((m) => (
-        <button key={m} role="tab" aria-selected={mode === m} className={mode === m ? 'active' : ''} onClick={() => changeMode(m)}>
+        <button
+          key={m}
+          role="tab"
+          aria-selected={mode === m}
+          className={`mode-${m}-btn${mode === m ? ' active' : ''}`}
+          onClick={() => changeMode(m)}
+        >
           {m[0].toUpperCase() + m.slice(1)}
         </button>
       ))}
@@ -242,7 +259,7 @@ export default function EditorPage() {
         </button>
         <input ref={fileInput} type="file" accept=".md,.markdown,.mdown,.mkd,.txt,text/markdown,text/plain" hidden onChange={onPick} />
         {doc && (
-          <Link to={`/doc/${doc.id}`} className="btn btn-ghost">
+          <Link to={`/doc/${doc.id}`} className="btn btn-ghost btn-view">
             View
           </Link>
         )}

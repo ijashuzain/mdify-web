@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { BookmarkIcon, CheckIcon, CopyIcon, DownloadIcon, EditIcon, LockIcon, PlusIcon } from '../components/Icons'
+import { BookmarkIcon, CheckIcon, CopyIcon, DownloadIcon, EditIcon, LinkIcon, LockIcon, PlusIcon } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import { useToast } from '../components/Toast'
 import TopBar from '../components/TopBar'
@@ -128,8 +128,9 @@ export default function ViewerPage() {
                   <BookmarkIcon size={14} /> <span className="btn-label">{saving ? 'Saving…' : 'Save to my docs'}</span>
                 </button>
               ))}
-            <button className="btn btn-secondary" onClick={copyLink}>
-              Copy link
+            <button className="btn btn-secondary btn-copy-link" onClick={copyLink} aria-label="Copy link">
+              <span className="btn-icon"><LinkIcon size={14} /></span>
+              <span className="btn-label">Copy link</span>
             </button>
           </div>
         )}

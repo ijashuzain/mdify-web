@@ -115,8 +115,17 @@ h1 {
   gap: 12px;
   height: 48px;
   padding: 0 12px;
+}
+/* The blur lives on a pseudo-element: backdrop-filter on the bar itself would make it the
+   containing block for the share panel's fixed scrim, shrinking the scrim to the bar. */
+.topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 .topbar-left {
   display: flex;
@@ -211,6 +220,9 @@ h1 {
   width: 100%;
   height: 34px;
 }
+.btn-icon {
+  display: none;
+}
 .link-btn {
   padding: 0;
   border: 0;
@@ -304,6 +316,7 @@ h1 {
 .editor-layout {
   display: flex;
   min-height: calc(100vh - 48px - 28px);
+  min-height: calc(100dvh - 48px - 28px);
 }
 .pane {
   flex: 1;
@@ -318,7 +331,7 @@ h1 {
 }
 .statusbar {
   position: fixed;
-  left: 12px;
+  right: 12px;
   bottom: 8px;
   font-size: 12px;
   color: var(--text-faint);
@@ -331,6 +344,7 @@ h1 {
   justify-content: center;
   gap: 12px;
   min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
   padding: 24px 16px;
   text-align: center;
 }
@@ -697,17 +711,49 @@ h1 {
   }
   .topbar {
     grid-template-columns: auto 1fr auto;
-    padding: 0 8px;
+    gap: 8px;
+    padding: 0 12px 0 8px;
   }
-  .topbar-right .btn-ghost {
+  .topbar-right .btn-ghost,
+  .topbar-right .btn-view {
     display: none;
   }
-  .topbar-right .btn-save {
+  .topbar-right .btn-save,
+  .topbar-right .btn-docs {
     display: inline-flex;
     padding: 0 8px;
   }
-  .btn-save .btn-label {
+  .btn-save .btn-label,
+  .btn-docs .btn-label,
+  .btn-copy-link .btn-label {
     display: none;
+  }
+  .btn-docs .btn-icon,
+  .btn-copy-link .btn-icon {
+    display: inline-flex;
+  }
+  .btn-copy-link {
+    width: 30px;
+    padding: 0;
+  }
+  .segmented .mode-split-btn {
+    display: none;
+  }
+  /* Anchored popovers can run off a phone screen; pin the share panel below the top bar instead. */
+  .popover {
+    position: fixed;
+    top: 56px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 66px);
+    overflow-y: auto;
+  }
+  /* iOS Safari zooms into inputs smaller than 16px on focus. */
+  .input,
+  .share-link input {
+    font-size: 16px;
   }
   .segmented button {
     padding: 0 7px;
@@ -719,10 +765,41 @@ h1 {
     opacity: 1;
   }
   .prose h1 {
-    font-size: 1.9em;
+    font-size: 1.75em;
+  }
+  .prose h2 {
+    font-size: 1.35em;
+  }
+  .prose pre {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 14px 16px;
+    border-radius: 0;
+  }
+  .prose th,
+  .prose td {
+    min-width: 7.5em;
   }
   .statusbar {
     display: none;
+  }
+}
+@media (pointer: coarse) {
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .btn {
+    height: 34px;
+  }
+  .btn-copy-link {
+    width: 36px;
+  }
+  .segmented button {
+    height: 30px;
+  }
+  .doc-row {
+    min-height: 48px;
   }
 }
 @media (max-width: 420px) {
